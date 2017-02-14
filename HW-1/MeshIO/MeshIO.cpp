@@ -26,7 +26,7 @@ void RefineMesh(std::vector< PlyVertex< float > > &plyVertices, std::vector< Tri
 		IdentifyVertex(p, i);
 		std::cout << "Index: " << site_index_map[p] << std::endl;
 	}
-	//Determine_New_Centers(site_index_map, index_site_map, plyVertices, triangles);
+	Determine_New_Centers(site_index_map, index_site_map, plyVertices, triangles);
 }
 
 
