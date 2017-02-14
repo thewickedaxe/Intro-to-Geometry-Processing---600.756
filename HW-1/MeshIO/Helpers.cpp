@@ -134,8 +134,10 @@ void Determine_New_Centers(
     // Write lock to ensure data writes are single threaded
 	omp_lock_t writelock;
 	omp_init_lock(&writelock);
+    
     std::cout << "Current Vertices Size: " << site_index_map.size() << std::endl;
     std::cout << "Current Triangles Count: " << triangles.size() << std::endl;
+    
     #pragma omp parallel num_threads(NUM_THREADS)
 	{
         int64_t i = omp_get_thread_num();
@@ -162,6 +164,7 @@ void Determine_New_Centers(
             i = i + NUM_THREADS;
         }
     }
+   
     plyVertices.clear();
     triangles.clear();
     for (int i = 0; i < index_site_map.size(); i++) {
@@ -169,6 +172,7 @@ void Determine_New_Centers(
     }
     triangles.clear();
     triangles = new_triangles;
+    
     std::cout << "Current Vertices Size: " << site_index_map.size() << std::endl;
     std::cout << "Current Triangles Count: " << triangles.size() << std::endl;
 }
@@ -192,9 +196,6 @@ void Put_In_Map(
 			site_index_map[plyVertices[i]] = i;
 			index_site_map[i] = plyVertices[i];
             Point3D< float > p = index_site_map[i];
-            //IdentifyVertex(p, i);
-		    std::cout << "Index: " << site_index_map[p] << std::endl;
-            IdentifyVertex(index_site_map[i], i);
 			omp_unset_lock(&writelock);
 			i = i + NUM_THREADS;
 		}

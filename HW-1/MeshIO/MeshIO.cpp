@@ -21,11 +21,6 @@ void RefineMesh(std::vector< PlyVertex< float > > &plyVertices, std::vector< Tri
 	std::map < int64_t, Point3D< float > > index_site_map;
 
 	Put_In_Map(site_index_map, index_site_map, plyVertices, triangles);
-	for (int i = 0; i < 5; i++) {
-		Point3D< float > p = index_site_map[i];
-		IdentifyVertex(p, i);
-		std::cout << "Index: " << site_index_map[p] << std::endl;
-	}
 	Determine_New_Centers(site_index_map, index_site_map, plyVertices, triangles);
 }
 
@@ -45,6 +40,10 @@ int main( int argc , char* argv[] )
 	// Storage for the vertices and triangles of the mesh
 	std::vector< PlyVertex< float > > plyVertices;
 	std::vector< TriangleIndex > triangles;
+	
+	// Allow for mesh smoothing and refinement to run independently
+	std::vector< PlyVertex< float > > plyVertices_clone;
+	std::vector< TriangleIndex > triangles_clone;
 
 	// This read function takes:
 	// -- The input file name
