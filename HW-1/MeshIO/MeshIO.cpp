@@ -1,7 +1,4 @@
 #include "Helpers.cpp"
-#include <omp.h>
-
-#define NUM_THREADS 3 // Determined to be 4 for my pc by trial and error
 
 // The command line parameters
 CmdLineParameter< char* > In( "in" ) , Out( "out" );
@@ -17,29 +14,19 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , ASCII.name );
 }
 
-
 void RefineMesh(std::vector< PlyVertex< float > > &plyVertices, std::vector< TriangleIndex > &triangles) {	
-	omp_lock_t writelock;
-	omp_init_lock(&writelock);
-	std::map < Point3D< float > , int , PointCompare> site_index_map;
-	std::map < int, Point3D< float > > index_site_map;
-	#pragma omp parallel num_threads(NUM_THREADS)
-	{
-		int i = omp_get_thread_num();
-		while ( i < plyVertices.size()) {
-			if (i % 1000 == 0) {
-				IdentifyVertex(plyVertices[i], i);
-			}
-			omp_set_lock(&writelock);
-			site_index_map[plyVertices[i]] = i;
-			index_site_map[i] = plyVertices[i];
-			omp_unset_lock(&writelock);
-			i = i + NUM_THREADS;
-		}
+	// A map of vertex to index
+	std::map < Point3D< float > , int64_t , PointCompare> site_index_map;
+	// A map of index to vertex
+	std::map < int64_t, Point3D< float > > index_site_map;
+
+	Put_In_Map(site_index_map, index_site_map, plyVertices, triangles);
+	for (int i = 0; i < 5; i++) {
+		Point3D< float > p = index_site_map[i];
+		IdentifyVertex(p, i);
+		std::cout << "Index: " << site_index_map[p] << std::endl;
 	}
-	/*for (int i = 0; i < 5; i++) {
-		IdentifyVertex(index_site_map[i]);
-	}*/
+	//Determine_New_Centers(site_index_map, index_site_map, plyVertices, triangles);
 }
 
 
