@@ -1,0 +1,23 @@
+{
+    "version": "0.1.0",
+    "tasks": [
+        {
+            "taskName": "build",
+            "command": "make",
+            "isShellCommand": true,
+            "isBuildCommand": true
+        },
+        {
+            "taskName": "clean",
+            "command": "make",
+            "args": ["clean"],
+            "isShellCommand": true
+        },
+        {
+            "taskName": "test",
+            "command": "Bin/Linux/MeshIO",
+            "args": ["--in", "Bin/Linux/armadillo.ply"],
+            "isShellCommand": true
+        }
+    ]
+}
