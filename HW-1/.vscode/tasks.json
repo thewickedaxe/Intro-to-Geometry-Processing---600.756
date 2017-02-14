@@ -4,7 +4,7 @@
         {
             "taskName": "Build",
             "command": "make",
-            "args": [""],
+            "args": [],
             "isShellCommand": true,
             "isBuildCommand": true            
         },

@@ -1,7 +1,7 @@
 #include "Helpers.cpp"
 #include <omp.h>
 
-#define NUM_THREADS 4 // Determined to be 4 for my pc by trial and error
+#define NUM_THREADS 3 // Determined to be 4 for my pc by trial and error
 
 // The command line parameters
 CmdLineParameter< char* > In( "in" ) , Out( "out" );
@@ -19,15 +19,27 @@ void Usage( const char* ex )
 
 
 void RefineMesh(std::vector< PlyVertex< float > > &plyVertices, std::vector< TriangleIndex > &triangles) {	
-	int i = 0;
-	#pragma omp parallel
+	omp_lock_t writelock;
+	omp_init_lock(&writelock);
+	std::map < Point3D< float > , int , PointCompare> site_index_map;
+	std::map < int, Point3D< float > > index_site_map;
+	#pragma omp parallel num_threads(NUM_THREADS)
 	{
 		int i = omp_get_thread_num();
 		while ( i < plyVertices.size()) {
-			IdentifyVertex(plyVertices[i], i);
+			if (i % 1000 == 0) {
+				IdentifyVertex(plyVertices[i], i);
+			}
+			omp_set_lock(&writelock);
+			site_index_map[plyVertices[i]] = i;
+			index_site_map[i] = plyVertices[i];
+			omp_unset_lock(&writelock);
 			i = i + NUM_THREADS;
 		}
 	}
+	/*for (int i = 0; i < 5; i++) {
+		IdentifyVertex(index_site_map[i]);
+	}*/
 }
 
 
