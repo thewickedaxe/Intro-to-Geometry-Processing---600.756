@@ -1,29 +1,68 @@
 #include "Helpers.cpp"
+#include <string>
 
 // The command line parameters
-CmdLineParameter< char* > In( "in" ) , Out( "out" );
+CmdLineParameter< char* > In( "in" ) , Out( "out" ), BW( "bw" ), Iterations( "i" );
 CmdLineReadable ASCII( "ascii" );
 
-CmdLineReadable* cmdLineParameters[] = { &In, &Out , &ASCII , NULL };
+CmdLineReadable* cmdLineParameters[] = { &In, &Out , &ASCII , &BW, &Iterations, NULL };
 
 void Usage( const char* ex )
 {
 	printf( "Usage %s:\n" , ex );
 	printf( "\t --%s <input mesh>\n" , In.name );
 	printf( "\t[--%s <output mesh>]\n", Out.name);
+	printf( "\t[--%s <bledning weight> must be betweeen 0 and 1]\n", BW.name);
+	printf( "\t[--%s <iterations> must be +ve]\n", Iterations.name);
 	printf( "\t[--%s]\n" , ASCII.name );
 }
 
-void RefineMesh(std::vector< PlyVertex< float > > &plyVertices, std::vector< TriangleIndex > &triangles) {	
-	// A map of vertex to index
-	std::map < Point3D< float > , int64_t , PointCompare> site_index_map;
-	// A map of index to vertex
-	std::map < int64_t, Point3D< float > > index_site_map;
-
+void RefineMesh(
+				std::vector< PlyVertex< float > > &plyVertices,
+				std::vector< TriangleIndex > &triangles,
+				std::map < int64_t, std::unordered_set< int64_t > > &associated_vertices,
+				std::map < Point3D< float > , int64_t , PointCompare> &site_index_map,
+                std::map < int64_t, Point3D< float > > &index_site_map
+				) {
 	Put_In_Map(site_index_map, index_site_map, plyVertices, triangles);
-	Determine_New_Centers(site_index_map, index_site_map, plyVertices, triangles);
+	Determine_New_Centers(site_index_map, index_site_map, plyVertices, triangles, associated_vertices);
 }
 
+void SmoothenMesh(
+				std::map < int64_t, std::unordered_set< int64_t > > &associated_vertices,
+                std::map < Point3D< float > , int64_t , PointCompare> &site_index_map,
+                std::map < int64_t, Point3D< float > > &index_site_map,
+                std::vector< PlyVertex< float > > &plyVertices,
+                int iterations,
+                float blending_weight
+                ) {
+    for (int i = 0; i < iterations; i++) {
+		// Two clones of the site maps
+		std::map < Point3D< float > , int64_t , PointCompare> site_index_clone = site_index_map;
+		std::map < int64_t, Point3D< float > > index_site_clone = index_site_map;
+
+		// Iterate over the indices, find neighboring vertices, blend
+		for(int i = 0; i < plyVertices.size(); i++) {
+
+			Point3D< float > point = index_site_clone[i];
+			std::vector< Point3D < float > > neighbors;
+			for (auto neighborindex : associated_vertices[i]) {
+				neighbors.push_back(index_site_clone[neighborindex]);
+			}
+			Point3D< float > newpoint = blend(point, neighbors, blending_weight);
+			site_index_map.erase(point);
+			index_site_map.erase(i);
+			site_index_map[newpoint] = i;
+			index_site_map[i] = newpoint;
+			//getchar();
+		}
+	}
+	std::cout << "Size: " << index_site_map.size() << std::endl;
+	plyVertices.clear();
+	for (int i = 0; i < index_site_map.size(); i++) {
+		plyVertices.push_back(index_site_map[i]);
+	}
+}
 
 int main( int argc , char* argv[] )
 {
@@ -31,19 +70,24 @@ int main( int argc , char* argv[] )
 	CmdLineParse( argc-1 , argv+1 , cmdLineParameters );
 
 	// Check that an input mesh has been specified
-	if( !In.set )
+	if( !In.set || !BW.set || !Iterations.set)
 	{
 		Usage( argv[0] );
 		return EXIT_FAILURE;
 	}
 
+
 	// Storage for the vertices and triangles of the mesh
 	std::vector< PlyVertex< float > > plyVertices;
 	std::vector< TriangleIndex > triangles;
-	
-	// Allow for mesh smoothing and refinement to run independently
-	std::vector< PlyVertex< float > > plyVertices_clone;
-	std::vector< TriangleIndex > triangles_clone;
+
+	// A map of vertex to index
+	std::map < Point3D< float > , int64_t , PointCompare> site_index_map;
+	// A map of index to vertex
+	std::map < int64_t, Point3D< float > > index_site_map;
+
+	// A map of ints to sets to hold associated vertices
+	std::map < int64_t, std::unordered_set< int64_t > > associated_vertices;
 
 	// This read function takes:
 	// -- The input file name
@@ -54,8 +98,19 @@ int main( int argc , char* argv[] )
 	// -- A description of the vertex properties
 	PlyReadTriangles( In.value , plyVertices , triangles , PlyVertex< float >::ReadProperties , NULL , PlyVertex< float >::ReadComponents );
 	printf( "Read mesh: %d vertices , %d triangles\n" , (int)plyVertices.size() , (int)triangles.size() );
+	std::cout << "Blending Weight: " << BW.value << std::endl;
+	std::cout << "Iterations: " << Iterations.value << std::endl;
 
-	RefineMesh(plyVertices, triangles);
+
+	RefineMesh(plyVertices, triangles, associated_vertices, site_index_map, index_site_map);
+	std::cout << "Size: " << index_site_map.size() << std::endl;
+	std::cout << "Size: " << index_site_map.size() << std::endl;
+	SmoothenMesh(associated_vertices,
+			     site_index_map,
+				 index_site_map,
+				 plyVertices,
+				 std::stoi(Iterations.value),
+				 std::stof(BW.value));
 
 	Timer timer;
 

@@ -5,7 +5,7 @@ MESH_IO_SOURCE=MeshIO.cpp
 #COMPILER = clang
 
 ifeq ($(COMPILER),gcc)
-	CFLAGS += -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fopenmp
+	CFLAGS += -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fopenmp -fpermissive
 	LFLAGS += -lgomp -lstdc++
 else
 # 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++14 -Wno-invalid-offsetof
