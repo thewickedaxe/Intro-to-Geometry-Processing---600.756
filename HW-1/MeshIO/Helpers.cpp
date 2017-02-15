@@ -10,11 +10,7 @@
 #include <map>
 #include <unordered_set>
 
-
-#include <omp.h>
-
 #define TRIANGLE_VERTEX_COUNT 3
-#define NUM_THREADS 1 // Determined to be 4 for my pc by trial and error
 
 bool areEqualRel(float a, float b, float epsilon) {
     return (fabs(a - b) <= epsilon * std::max(1.0f, std::max(a, b)));
@@ -181,22 +177,10 @@ void Put_In_Map(
                 std::vector< PlyVertex< float > > &plyVertices,
                 std::vector< TriangleIndex > &triangles
                 ) {
-    // Write lock to ensure data writes are single threaded
-	omp_lock_t writelock;
-	omp_init_lock(&writelock);
-
     // I know parallelization achieves nothing here, but just having it anyway
-	#pragma omp parallel num_threads(NUM_THREADS)
-	{
-		int i = omp_get_thread_num();
-		while ( i < plyVertices.size()) {
-			omp_set_lock(&writelock);
+	for (int64_t i = 0; i < plyVertices.size(); i++) {
 			site_index_map[plyVertices[i]] = i;
 			index_site_map[i] = plyVertices[i];
-            Point3D< float > p = index_site_map[i];
-			omp_unset_lock(&writelock);
-			i = i + NUM_THREADS;
-		}
 	}
 }
 
@@ -208,17 +192,11 @@ void Determine_New_Centers(
                 std::map < int64_t, std::unordered_set< int64_t > > &associated_vertices
                 ) {
     std::vector< TriangleIndex > new_triangles; // Will hold the new triangles
-    // Write lock to ensure data writes are single threaded
-	omp_lock_t writelock;
-	omp_init_lock(&writelock);
-    
+
     std::cout << "Current Vertices Size: " << site_index_map.size() << std::endl;
     std::cout << "Current Triangles Count: " << triangles.size() << std::endl;
-    
-    #pragma omp parallel num_threads(NUM_THREADS)
-	{
-        int64_t i = omp_get_thread_num();
-        while (i < triangles.size()) {
+
+    for (int64_t i = 0; i < triangles.size(); i++) {
             TriangleIndex t = triangles[i];
             Point3D< float > v0,v1,v2,m01,m12,m20;
             v0 = index_site_map[t[0]];
@@ -227,8 +205,7 @@ void Determine_New_Centers(
             m01 = Determine_Midpoint(v0, v1);
             m12 = Determine_Midpoint(v1, v2);
             m20 = Determine_Midpoint(v2, v0);
-            
-            omp_set_lock(&writelock);
+
             Safe_Insert_Vertex(site_index_map, index_site_map, m01);
             Safe_Insert_Vertex(site_index_map, index_site_map, m12);
             Safe_Insert_Vertex(site_index_map, index_site_map, m20);
@@ -240,11 +217,8 @@ void Determine_New_Centers(
                                  new_triangles,
                                  associated_vertices
                                  );
-            omp_unset_lock(&writelock);
-            i = i + NUM_THREADS;
-        }
     }
-   
+
     plyVertices.clear();
     triangles.clear();
     for (int i = 0; i < index_site_map.size(); i++) {

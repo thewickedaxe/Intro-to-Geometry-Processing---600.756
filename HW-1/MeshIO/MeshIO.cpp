@@ -1,6 +1,10 @@
 #include "Helpers.cpp"
 #include <string>
 
+#include <omp.h>
+
+#define NUM_THREADS 1 // Determined to be 3 for my pc by trial and error
+
 // The command line parameters
 CmdLineParameter< char* > In( "in" ) , Out( "out" ), BW( "bw" ), Iterations( "i" );
 CmdLineReadable ASCII( "ascii" );
@@ -36,25 +40,34 @@ void SmoothenMesh(
                 int iterations,
                 float blending_weight
                 ) {
-    for (int i = 0; i < iterations; i++) {
+    for (int j = 0; j < iterations; j++) {
 		// Two clones of the site maps
 		std::map < Point3D< float > , int64_t , PointCompare> site_index_clone = site_index_map;
 		std::map < int64_t, Point3D< float > > index_site_clone = index_site_map;
 
 		// Iterate over the indices, find neighboring vertices, blend
-		for(int i = 0; i < plyVertices.size(); i++) {
+		int64_t i = 0;
+		omp_lock_t writelock;
+		omp_init_lock(&writelock);
 
-			Point3D< float > point = index_site_clone[i];
-			std::vector< Point3D < float > > neighbors;
-			for (auto neighborindex : associated_vertices[i]) {
-				neighbors.push_back(index_site_clone[neighborindex]);
+		#pragma omp parallel num_threads(NUM_THREADS)
+		{
+			i = omp_get_thread_num();
+			while(i < plyVertices.size()) {
+				Point3D< float > point = index_site_clone[i];
+				std::vector< Point3D < float > > neighbors;
+				for (auto neighborindex : associated_vertices[i]) {
+					neighbors.push_back(index_site_clone[neighborindex]);
+				}
+				Point3D< float > newpoint = blend(point, neighbors, blending_weight);
+				omp_set_lock(&writelock);
+				site_index_map.erase(point);
+				index_site_map.erase(i);
+				site_index_map[newpoint] = i;
+				index_site_map[i] = newpoint;
+				omp_unset_lock(&writelock);
+				i += NUM_THREADS;
 			}
-			Point3D< float > newpoint = blend(point, neighbors, blending_weight);
-			site_index_map.erase(point);
-			index_site_map.erase(i);
-			site_index_map[newpoint] = i;
-			index_site_map[i] = newpoint;
-			//getchar();
 		}
 	}
 	std::cout << "Size: " << index_site_map.size() << std::endl;
