@@ -1,0 +1,22 @@
+{
+    "files.associations": {
+        "*.cu": "cpp",
+        "*.ml": "ocaml",
+        "*.mli": "ocaml",
+        "cctype": "cpp",
+        "cmath": "cpp",
+        "cstdarg": "cpp",
+        "cstddef": "cpp",
+        "cstdio": "cpp",
+        "cstdlib": "cpp",
+        "cstring": "cpp",
+        "ctime": "cpp",
+        "cwchar": "cpp",
+        "cwctype": "cpp",
+        "atomic": "cpp",
+        "cstdint": "cpp",
+        "slist": "cpp",
+        "initializer_list": "cpp",
+        "iosfwd": "cpp"
+    }
+}

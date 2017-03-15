@@ -48,6 +48,8 @@ all: $(BIN)
 all: $(BIN)$(MESH_IO_TARGET)
 all: $(BIN)$(CURVATURE_TARGET)
 all: $(BIN)$(LIC_TARGET)
+all:
+	@echo "Done"
 
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)

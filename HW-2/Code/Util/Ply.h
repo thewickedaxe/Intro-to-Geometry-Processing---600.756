@@ -135,6 +135,8 @@ public:
 
 	operator Point3D<Real>& ()					{return position;}
 	operator const Point3D<Real>& () const		{return position;}
+	Real& operator[] ( int i ) { return position[i]; }
+	const Real& operator[] ( int i ) const { return position[i]; }
 	template< class Real2 > operator Point3D< Real2 > ( ) const { return Point3D< Real2 >( position ); }
 	PlyOrientedVertex(void)						{ }
 	PlyOrientedVertex(const Point3D<Real>& p)	{ position=p; }

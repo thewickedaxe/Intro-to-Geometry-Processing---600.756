@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <algorithm>
 #include <unordered_map>
-
 #define SOLUTION
 
 #ifdef _OPENMP
@@ -19,6 +15,10 @@ void omp_set_num_threads( int  ){ }
 #include "Util/Geometry.h"
 #include "Util/CmdLineParser.h"
 #include "Util/Timer.h"
+
+#include "Helpers.cpp"
+
+const bool DEBUG_MODE = false;
 
 // The command line parameters
 enum
@@ -125,35 +125,168 @@ void RefineMesh( std::vector< PlyOrientedVertex< float > >& plyVertices , std::v
 	plyVertices = newPlyVertices;
 }
 
+
+
+
+
 void SetNormals( std::vector< PlyOrientedVertex< float > >& plyVertices , const std::vector< TriangleIndex >& triangles )
 {
-	// Compute the vertex normals
+	std::vector< SmartFace > faces; // Faces in the mesh
+	std::map < Point3D< float > , int64_t , PointCompare> site_index_map; // Index of every site
+	std::map < int64_t, Point3D< float > > index_site_map; // Site of every index
+	std::map< int64_t, std::vector< SmartFace > > vertex_face_associations; //which vertex os part of whch face
+	Put_In_Map(site_index_map, index_site_map, plyVertices, triangles);
+	for (int i = 0; i < triangles.size(); i++) {
+		TriangleIndex t = triangles[i];
+		SmartFace face;
+		face[0] = index_site_map[t[0]];
+		face[1] = index_site_map[t[1]];
+		face[2] = index_site_map[t[2]];
+		face.Calc_Area();
+		face.Calc_Normal();
+		face.index = i;
+		faces.push_back(face);
+		vertex_face_associations[t[0]].push_back(face);
+		vertex_face_associations[t[1]].push_back(face);
+		vertex_face_associations[t[2]].push_back(face);
+	}
+	for (int i = 0; i < plyVertices.size(); i++) {
+		Point3D< double > cumulative_normal;
+		std::vector< SmartFace > associated_faces = vertex_face_associations[i];
+		for (SmartFace face : associated_faces) {
+			cumulative_normal += face.normal * face.area;
+		}
+		//IdentifyVertex(cumulative_normal);
+		plyVertices[i].normal = cumulative_normal / Length(cumulative_normal);
+	}
+	if (DEBUG_MODE) {
+		for (int i = 0; i < 5; i++) {
+			IdentifyVertex(plyVertices[i].normal);
+		}
+	}
 }
 
 std::vector< float > GetCurvatures( const std::vector< PlyOrientedVertex< float > >& plyVertices , const std::vector< TriangleIndex >& triangles , int curvatureType )
 {
-	std::vector< float > vCurvatures( plyVertices.size() , 0 ) , tCurvatures( triangles.size() , 0 );
-
-	// Compute the mean/Gaussian curvatures per triangle (tCurvatures)
-	{
-#pragma message ( "[WARNING] Missing code here" )
+	if (curvatureType == CURVATURE_MEAN) {
+		std::cout << "Calculating mean curvature\n";
+	} else {
+		std::cout << "Calculating gaussian curvature\n";
 	}
-	// Average the per-triangle curvature values into the vertices (tCurvatures -> vCurvatures)
-	{
-#pragma message ( "[WARNING] Missing code here" )
+	std::vector< float > vCurvatures( plyVertices.size() , 0 ) , tCurvatures( triangles.size() , 0 );
+	std::vector< SmartFace > faces; // Faces in the mesh
+	std::map < Point3D< float > , int64_t , PointCompare> site_index_map; // Index of every site
+	std::map < int64_t, Point3D< float > > index_site_map; // Site of every index
+	std::map< int64_t, std::vector< SmartFace > > vertex_face_associations; //which vertex os part of whch face
+	Put_In_Map(site_index_map, index_site_map, plyVertices, triangles);
+
+	for (int i = 0; i < triangles.size(); i++) {
+		TriangleIndex t = triangles[i];
+		SmartFace face;
+		face[0] = index_site_map[t[0]];
+		face[1] = index_site_map[t[1]];
+		face[2] = index_site_map[t[2]];
+		face.n1 = plyVertices[t[0]].normal;
+		face.n2 = plyVertices[t[1]].normal;
+		face.n3 = plyVertices[t[2]].normal;
+		face.Calc_Area();
+		if (curvatureType == CURVATURE_MEAN) {
+			face.Calc_Curvature(0);
+		} else {
+			face.Calc_Curvature(1);
+		}
+		face.index = i;
+		faces.push_back(face);
+		vertex_face_associations[t[0]].push_back(face);
+		vertex_face_associations[t[1]].push_back(face);
+		vertex_face_associations[t[2]].push_back(face);
+	}
+
+	for (int i = 0; i < plyVertices.size(); i++) {
+		double cumulative_curvature = 0;
+		double cumulative_area = 0;
+		std::vector< SmartFace > associated_faces = vertex_face_associations[i];
+		for (SmartFace face : associated_faces) {
+			if (DEBUG_MODE) {
+				std::cout << "Face has curvature: " << face.curvature << std::endl;
+				std::cout << "Face has area: " << face.area << std::endl;
+			}
+			cumulative_curvature += face.curvature * face.area;
+			cumulative_area += face.area;
+		}
+		if (DEBUG_MODE) {
+			std::cout << "Cumulative curvature: " << cumulative_curvature << std::endl;
+			std::cout << "Cumulative area: " << cumulative_area << std::endl;
+			std::cout << "Expected Vertex curvature: " << (cumulative_curvature / cumulative_area) << std::endl;
+		}
+		vCurvatures[i] = ((float)(cumulative_curvature / cumulative_area));
+		if (DEBUG_MODE) {
+			std::cout << "Value added to vector" << vCurvatures[i] << std::endl;
+		}
+	}
+	if (DEBUG_MODE) {
+		for (int i = 0; i < 5; i++) {
+			std::cout << "Curvature value: " << vCurvatures[i] << std::endl;
+		}
 	}
 	return vCurvatures;
 }
 
 std::vector< CurvatureInfo > GetCurvatures( const std::vector< PlyOrientedVertex< float > >& plyVertices , const std::vector< TriangleIndex >& triangles )
 {
-	std::vector< CurvatureInfo > curvatures( triangles.size() );
+	std::vector< CurvatureInfo > curvatures;
+	std::vector< float > vCurvatures( plyVertices.size() , 0 ) , tCurvatures( triangles.size() , 0 );
+	std::vector< SmartFace > faces; // Faces in the mesh
+	std::map < Point3D< float > , int64_t , PointCompare> site_index_map; // Index of every site
+	std::map < int64_t, Point3D< float > > index_site_map; // Site of every index
+	std::map< int64_t, std::vector< SmartFace > > vertex_face_associations; //which vertex os part of whch face
+	Put_In_Map(site_index_map, index_site_map, plyVertices, triangles);
 
-	// Compute the principal curvature directions and values
-	// (The first principal curvature value/direction should be the one with the largest value)
-#pragma message ( "[WARNING] Missing code here" )
-
-	return curvatures;
+	for (int i = 0; i < triangles.size(); i++) {
+		TriangleIndex t = triangles[i];
+		SmartFace face;
+		face[0] = index_site_map[t[0]];
+		face[1] = index_site_map[t[1]];
+		face[2] = index_site_map[t[2]];
+		face.n1 = plyVertices[t[0]].normal;
+		face.n2 = plyVertices[t[1]].normal;
+		face.n3 = plyVertices[t[2]].normal;
+		face.Calc_Area();
+		face.Calc_Curvature(0);
+		face.Calc_Curvature(1);
+		face.Calc_Principal_Curvatures();
+		face.index = i;
+		faces.push_back(face);
+		vertex_face_associations[t[0]].push_back(face);
+		vertex_face_associations[t[1]].push_back(face);
+		vertex_face_associations[t[2]].push_back(face);
+	}
+	double min_curvature, max_curvature;
+	int iter = 0;
+	for (SmartFace face : faces) {
+		if (face.pc_1 < min_curvature) {
+			min_curvature = face.pc_1;
+		}
+		if (face.pc_2 < min_curvature) {
+			min_curvature = face.pc_2;
+		}
+		if (max_curvature < face.pc_1) {
+			max_curvature = face.pc_1;
+		}
+		if (max_curvature < face.pc_2) {
+			max_curvature = face.pc_2;
+		}
+		CurvatureInfo c;
+		c.k1 = max(face.pc_1, face.pc_2);
+		c.k2 = min(face.pc_1, face.pc_2);
+		std::cout << "Curvature difference: " << (c.k1 - c.k2) << std::endl;
+		face.Calc_Principal_Directions(c.k1, c.k2);
+		c.dir1 = face.dir1;
+		c.dir2 = face.dir2;
+		curvatures.push_back(c);
+	}
+	std::cout << "Maximum Curvature difference between 2 faces: " << abs(max_curvature - min_curvature) << std::endl;
+	exit(0);
 }
 
 int main( int argc , char* argv[] )
@@ -202,8 +335,10 @@ int main( int argc , char* argv[] )
 			std::vector< TriangleIndexWithData< CurvatureInfo > > _triangles( triangles.size() );
 			for( int i=0 ; i<triangles.size() ; i++ )
 			{
+				std::cout<<"start: " << i << std::endl;
 				for( int j=0 ; j<3 ; j++ ) _triangles[i][j] = triangles[i][j];
 				_triangles[i].data = curvatures[i].normalize();
+				std::cout<<"stop\n";
 			}
 			PlyWriteTriangles< PlyOrientedVertex< float > , CurvatureInfo >( Out.value , plyVertices , _triangles , PlyVertex< float >::WriteProperties , PlyVertex< float >::WriteComponents , CurvatureInfo::Properties , CurvatureInfo::Components , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE );
 		}
